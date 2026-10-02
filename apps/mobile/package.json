@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expenseflow/parser-engine": "workspace:*",
     "@expenseflow/shared-types": "workspace:*",
     "@expenseflow/shared-ui": "workspace:*",
     "@expenseflow/sdk": "workspace:*",

@@ -22,3 +22,9 @@ export class ParserEngine {
     return null;
   }
 }
+
+const defaultEngine = new ParserEngine();
+
+export function parseSMS(text: string, sender?: string, timestamp?: string): ParsedTransactionResult | null {
+  return defaultEngine.parse(text, sender, timestamp);
+}

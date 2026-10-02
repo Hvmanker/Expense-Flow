@@ -78,6 +78,9 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@expenseflow/parser-engine':
+        specifier: workspace:*
+        version: link:../../packages/parser-engine
       '@expenseflow/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
