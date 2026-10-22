@@ -32,6 +32,10 @@ export class AuthController {
         ...result,
       });
     } catch (err: any) {
+      if (err.message === 'OTP_RESEND_TOO_SOON' || err.message === 'OTP_SEND_LIMIT_EXCEEDED') {
+        res.status(429).json({ success: false, error: err.message });
+        return;
+      }
       res.status(500).json({ success: false, error: err.message || 'Failed to dispatch magic link' });
     }
   };
@@ -59,6 +63,10 @@ export class AuthController {
         res.status(401).json({ success: false, error: 'Verification code is invalid or has expired' });
         return;
       }
+      if (err.message === 'TOO_MANY_OTP_ATTEMPTS') {
+        res.status(429).json({ success: false, error: 'Too many failed verification attempts; request a new code' });
+        return;
+      }
       res.status(500).json({ success: false, error: err.message || 'Authentication failed' });
     }
   };
@@ -81,6 +89,10 @@ export class AuthController {
         ...result,
       });
     } catch (err: any) {
+      if (err.message === 'OTP_RESEND_TOO_SOON' || err.message === 'OTP_SEND_LIMIT_EXCEEDED') {
+        res.status(429).json({ success: false, error: err.message });
+        return;
+      }
       res.status(500).json({ success: false, error: err.message || 'Internal server error' });
     }
   };

@@ -30,6 +30,32 @@ describe('AuthService - Magic Link & OTP Flow', () => {
     );
   });
 
+  it('should throttle immediate OTP resend attempts', async () => {
+    const testEmail = 'resend-limit@expenseflow.ai';
+    await authService.sendMagicLink(testEmail);
+
+    await expect(authService.sendMagicLink(testEmail)).rejects.toThrow(
+      'OTP_RESEND_TOO_SOON'
+    );
+  });
+
+  it('should invalidate an OTP after five failed verification attempts', async () => {
+    const testEmail = 'attempt-limit@expenseflow.ai';
+    const sendResult = await authService.sendMagicLink(testEmail);
+
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      await expect(authService.verifyMagicLink(testEmail, '000000')).rejects.toThrow(
+        'INVALID_OTP'
+      );
+    }
+    await expect(authService.verifyMagicLink(testEmail, '000000')).rejects.toThrow(
+      'TOO_MANY_OTP_ATTEMPTS'
+    );
+    await expect(authService.verifyMagicLink(testEmail, sendResult.devOtp!)).rejects.toThrow(
+      'EXPIRED_OR_INVALID_OTP'
+    );
+  });
+
   it('should successfully verify valid OTP, consume it, and issue JWT session', async () => {
     const testEmail = 'valid-user@expenseflow.ai';
     const sendResult = await authService.sendMagicLink(testEmail);
@@ -78,8 +104,9 @@ describe('AuthService - Magic Link & OTP Flow', () => {
 
     expect(result.user.email).toBe(testEmail);
     expect(evalMock).toHaveBeenCalledTimes(1);
-    expect(evalMock.mock.calls[0][1]).toBe(1);
+    expect(evalMock.mock.calls[0][1]).toBe(2);
     expect(evalMock.mock.calls[0][2]).toBe(`auth:otp:${testEmail}`);
-    expect(evalMock.mock.calls[0][3]).toBe(validOtp);
+    expect(evalMock.mock.calls[0][3]).toBe(`auth:otp:attempts:${testEmail}`);
+    expect(evalMock.mock.calls[0][4]).toBe(validOtp);
   });
 });

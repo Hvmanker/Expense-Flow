@@ -83,7 +83,8 @@ export const useTransactionStore = create<TransactionStoreState>((set, get) => (
   triggerSync: async () => {
     set({ isSyncing: true });
     try {
-      await syncClient.runSync();
+      const result = await syncClient.runSync();
+      if (result.errors.length > 0) throw new Error(result.errors.join('; '));
       await get().loadData();
     } catch (err) {
       console.warn('Sync failed:', err);

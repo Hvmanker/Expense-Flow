@@ -1,0 +1,29 @@
+appId: com.expenseflow.app
+env:
+  TEST_EMAIL: ${TEST_EMAIL}
+  OTP_CODE: ${OTP_CODE}
+---
+- launchApp:
+    clearState: true
+- tapOn: "Settings"
+- tapOn:
+    id: "auth-email-input"
+- inputText: ${TEST_EMAIL}
+- tapOn:
+    id: "auth-send-code"
+- assertVisible:
+    id: "auth-feedback"
+- tapOn:
+    id: "auth-code-input"
+- inputText: ${OTP_CODE}
+- tapOn:
+    id: "auth-verify-code"
+- assertVisible: "Authenticated"
+- tapOn:
+    id: "test-background-sync"
+- assertVisible: "Background sync test worker triggered."
+- stopApp
+- launchApp
+- tapOn: "Settings"
+- assertVisible: "Authenticated"
+- assertVisible: ${TEST_EMAIL}

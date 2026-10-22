@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput 
 import { useTransactionStore } from '../../src/stores/transaction-store';
 import { getAuthSession, saveAuthSession, clearAuthSession } from '../../src/services/auth-store';
 import { syncClient } from '../../src/services/sync-client';
+import * as BackgroundTask from 'expo-background-task';
 
 export default function SettingsScreen() {
   const { pendingSyncCount, lastSyncTime, isSyncing, triggerSync } = useTransactionStore();
@@ -90,6 +91,24 @@ export default function SettingsScreen() {
     setAuthFeedback({ kind: 'success', message: 'Signed out securely.' });
   };
 
+  const handleTestBackgroundSync = async () => {
+    setAuthFeedback(null);
+    try {
+      const triggered = await BackgroundTask.triggerTaskWorkerForTestingAsync();
+      setAuthFeedback({
+        kind: triggered ? 'success' : 'error',
+        message: triggered
+          ? 'Background sync test worker triggered.'
+          : 'Background sync test worker was not triggered.',
+      });
+    } catch (error) {
+      setAuthFeedback({
+        kind: 'error',
+        message: error instanceof Error ? error.message : 'Unable to trigger background sync.',
+      });
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Settings & Sync</Text>
@@ -126,6 +145,7 @@ export default function SettingsScreen() {
               autoComplete="email"
               keyboardType="email-address"
               accessibilityLabel="Email address"
+              testID="auth-email-input"
               editable={!isAuthenticating && authStep === 'email'}
             />
             {authStep === 'code' ? (
@@ -138,12 +158,14 @@ export default function SettingsScreen() {
                 keyboardType="number-pad"
                 textContentType="oneTimeCode"
                 accessibilityLabel="Verification code"
+                testID="auth-code-input"
                 editable={!isAuthenticating}
               />
             ) : null}
             {authFeedback ? (
               <Text
                 accessibilityLiveRegion="polite"
+                testID="auth-feedback"
                 style={authFeedback.kind === 'error' ? styles.errorText : styles.successText}
               >
                 {authFeedback.message}
@@ -155,6 +177,7 @@ export default function SettingsScreen() {
               disabled={isAuthenticating}
               accessibilityRole="button"
               accessibilityLabel={authStep === 'email' ? 'Send verification code' : 'Verify code and sign in'}
+              testID={authStep === 'email' ? 'auth-send-code' : 'auth-verify-code'}
             >
               {isAuthenticating ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
@@ -189,6 +212,7 @@ export default function SettingsScreen() {
           style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
           onPress={triggerSync}
           disabled={isSyncing}
+          testID="sync-now"
         >
           {isSyncing ? (
             <ActivityIndicator color="#FFFFFF" size="small" />
@@ -196,6 +220,17 @@ export default function SettingsScreen() {
             <Text style={styles.syncButtonText}>Sync Now</Text>
           )}
         </TouchableOpacity>
+        {__DEV__ ? (
+          <TouchableOpacity
+            style={styles.testButton}
+            onPress={handleTestBackgroundSync}
+            accessibilityRole="button"
+            accessibilityLabel="Test background sync"
+            testID="test-background-sync"
+          >
+            <Text style={styles.testButtonText}>Test Background Sync</Text>
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* Apple Shortcuts Ingestion Card */}
@@ -238,6 +273,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   logoutButtonText: { color: '#FF453A', fontWeight: '600', fontSize: 14 },
+  testButton: { padding: 10, alignItems: 'center', marginTop: 8 },
+  testButtonText: { color: '#64D2FF', fontWeight: '600', fontSize: 13 },
   authInputContainer: { marginTop: 10 },
   successText: { color: '#34C759', fontSize: 13, lineHeight: 18, marginTop: 4 },
   errorText: { color: '#FF453A', fontSize: 13, lineHeight: 18, marginTop: 4 },

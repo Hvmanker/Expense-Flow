@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { processCategorizationJob } from '../categorization.worker.js';
+import { isTerminalFailure, processCategorizationJob } from '../categorization.worker.js';
+import { CATEGORIZATION_MAX_ATTEMPTS } from '../../queues/transaction.queue.js';
 import { TransactionModel, MerchantModel } from '@expenseflow/database';
 
 describe('BullMQ Categorization Worker', () => {
@@ -36,5 +37,16 @@ describe('BullMQ Categorization Worker', () => {
     expect(updatePayload.$set.aiConfidence).toBeGreaterThanOrEqual(0.8);
 
     expect(findOneAndUpdateSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('should classify failures as terminal only after the configured retry budget', () => {
+    expect(isTerminalFailure({
+      attemptsMade: CATEGORIZATION_MAX_ATTEMPTS - 1,
+      opts: { attempts: CATEGORIZATION_MAX_ATTEMPTS },
+    } as any)).toBe(false);
+    expect(isTerminalFailure({
+      attemptsMade: CATEGORIZATION_MAX_ATTEMPTS,
+      opts: { attempts: CATEGORIZATION_MAX_ATTEMPTS },
+    } as any)).toBe(true);
   });
 });

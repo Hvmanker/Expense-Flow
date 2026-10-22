@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { idempotencyMiddleware } from '../idempotency.middleware.js';
 import { Request, Response } from 'express';
+import * as redisClient from '../../redis/client.js';
 
 describe('Idempotency Middleware', () => {
   let mockReq: Partial<Request>;
@@ -144,5 +145,30 @@ describe('Idempotency Middleware', () => {
       expect.objectContaining({ error: expect.stringContaining('in progress') })
     );
     expect(nextFunction2).not.toHaveBeenCalled();
+  });
+
+  it('should release a Redis lock only through an owner-token compare-and-delete script', async () => {
+    const get = vi.fn().mockResolvedValue(null);
+    const set = vi.fn().mockResolvedValue('OK');
+    const evalScript = vi.fn().mockResolvedValue(1);
+    vi.spyOn(redisClient, 'isRedisConnected').mockReturnValue(true);
+    vi.spyOn(redisClient, 'getRedisClient').mockReturnValue({ get, set, eval: evalScript } as any);
+    mockReq.headers = { 'idempotency-key': 'redis-owner-token' };
+
+    await idempotencyMiddleware(mockReq as Request, mockRes as Response, nextFunction);
+    mockRes.json!({ success: true });
+
+    expect(set).toHaveBeenCalledWith(
+      expect.stringContaining('redis-owner-token:lock'),
+      expect.any(String),
+      'EX',
+      30,
+      'NX'
+    );
+    const ownerToken = set.mock.calls[0][1];
+    await vi.waitFor(() => expect(evalScript).toHaveBeenCalled());
+    expect(evalScript.mock.calls[0][1]).toBe(1);
+    expect(evalScript.mock.calls[0][2]).toContain('redis-owner-token:lock');
+    expect(evalScript.mock.calls[0][3]).toBe(ownerToken);
   });
 });

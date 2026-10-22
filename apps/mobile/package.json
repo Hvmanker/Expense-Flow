@@ -8,7 +8,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@expenseflow/parser-engine": "workspace:*",
@@ -18,8 +19,10 @@
     "@expo/dom-webview": "~58.0.2",
     "@expo/metro-runtime": "~58.0.15",
     "@expo/ui": "~58.0.22",
+    "@react-native-community/netinfo": "12.0.1",
     "@tanstack/react-query": "^5.28.0",
     "expo": "~58.0.17",
+    "expo-background-task": "~58.0.11",
     "expo-constants": "~58.0.13",
     "expo-font": "~58.0.9",
     "expo-linking": "~58.0.14",
@@ -29,6 +32,7 @@
     "expo-sqlite": "~58.0.13",
     "expo-status-bar": "~58.0.4",
     "expo-symbols": "~58.0.4",
+    "expo-task-manager": "~58.0.12",
     "lucide-react-native": "^1.61.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
@@ -44,6 +48,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^1.4.0"
   }
 }

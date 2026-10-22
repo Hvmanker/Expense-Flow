@@ -4,6 +4,12 @@
     "slug": "expenseflow",
     "version": "1.0.0",
     "scheme": "expenseflow",
+    "ios": {
+      "bundleIdentifier": "com.expenseflow.app"
+    },
+    "android": {
+      "package": "com.expenseflow.app"
+    },
     "plugins": [
       [
         "expo-router",
@@ -17,7 +23,8 @@
       "expo-secure-store",
       "expo-sqlite",
       "expo-status-bar",
-      "expo-font"
+      "expo-font",
+      "expo-background-task"
     ],
     "experiments": {
       "typedRoutes": true

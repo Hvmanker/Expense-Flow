@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { getRedisClient, isRedisConnected } from '../redis/client.js';
 import { logger } from '@expenseflow/logger';
 
@@ -11,10 +11,16 @@ interface CachedResponse {
 
 // Bounded in-memory fallback if Redis is temporarily unreachable
 const memoryFallback = new Map<string, { data: CachedResponse; expiresAt: number }>();
-const memoryLocks = new Map<string, number>();
+const memoryLocks = new Map<string, { ownerToken: string; expiresAt: number }>();
 const MAX_FALLBACK_ENTRIES = 500;
 const TTL_SECONDS = 86400; // 24 hours
 const LOCK_TTL_SECONDS = 30;
+const RELEASE_LOCK_SCRIPT = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+  return redis.call('DEL', KEYS[1])
+end
+return 0
+`;
 
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) {
@@ -40,8 +46,8 @@ function pruneMemoryFallback() {
       memoryFallback.delete(key);
     }
   }
-  for (const [key, expiresAt] of memoryLocks.entries()) {
-    if (expiresAt < now) memoryLocks.delete(key);
+  for (const [key, lock] of memoryLocks.entries()) {
+    if (lock.expiresAt < now) memoryLocks.delete(key);
   }
   if (memoryFallback.size > MAX_FALLBACK_ENTRIES) {
     const oldestKey = memoryFallback.keys().next().value;
@@ -69,6 +75,7 @@ export async function idempotencyMiddleware(
   const path = req.originalUrl || req.url || 'default';
   const cacheKey = `idempotency:${userId}:${req.method}:${path}:${idempotencyKey}`;
   const lockKey = `${cacheKey}:lock`;
+  const lockOwnerToken = randomUUID();
   const requestHash = hashRequestBody(req.body);
   let redis = isRedisConnected() ? getRedisClient() : null;
 
@@ -95,7 +102,7 @@ export async function idempotencyMiddleware(
 
       const acquired = await redis.set(
         lockKey,
-        requestHash,
+        lockOwnerToken,
         'EX',
         LOCK_TTL_SECONDS,
         'NX'
@@ -118,11 +125,14 @@ export async function idempotencyMiddleware(
         return;
       }
 
-      if ((memoryLocks.get(lockKey) ?? 0) > Date.now()) {
+      if ((memoryLocks.get(lockKey)?.expiresAt ?? 0) > Date.now()) {
         rejectConflict('A request with this idempotency key is already in progress');
         return;
       }
-      memoryLocks.set(lockKey, Date.now() + LOCK_TTL_SECONDS * 1000);
+      memoryLocks.set(lockKey, {
+        ownerToken: lockOwnerToken,
+        expiresAt: Date.now() + LOCK_TTL_SECONDS * 1000,
+      });
     }
   } catch (err: any) {
     logger.warn(
@@ -131,11 +141,14 @@ export async function idempotencyMiddleware(
     );
     redis = null;
     pruneMemoryFallback();
-    if ((memoryLocks.get(lockKey) ?? 0) > Date.now()) {
+    if ((memoryLocks.get(lockKey)?.expiresAt ?? 0) > Date.now()) {
       rejectConflict('A request with this idempotency key is already in progress');
       return;
     }
-    memoryLocks.set(lockKey, Date.now() + LOCK_TTL_SECONDS * 1000);
+    memoryLocks.set(lockKey, {
+      ownerToken: lockOwnerToken,
+      expiresAt: Date.now() + LOCK_TTL_SECONDS * 1000,
+    });
   }
 
   // 2. Intercept response to store result
@@ -145,11 +158,13 @@ export async function idempotencyMiddleware(
     if (released) return;
     released = true;
     if (redis) {
-      redis.del(lockKey).catch((err) =>
+      redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, lockOwnerToken).catch((err) =>
         logger.warn({ err: err.message }, 'Failed to release Redis idempotency lock')
       );
     } else {
-      memoryLocks.delete(lockKey);
+      if (memoryLocks.get(lockKey)?.ownerToken === lockOwnerToken) {
+        memoryLocks.delete(lockKey);
+      }
     }
   };
 

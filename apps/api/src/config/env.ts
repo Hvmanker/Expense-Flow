@@ -26,6 +26,10 @@ const envSchema = z.object({
   OLLAMA_HOST: z
     .string()
     .default('http://localhost:11434'),
+  QUEUE_CONCURRENCY: z.coerce.number().int().positive().default(5),
+  QUEUE_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  QUEUE_RATE_LIMIT_DURATION_MS: z.coerce.number().int().positive().default(1000),
+  QUEUE_ALERT_WEBHOOK_URL: z.string().url().optional(),
   CORS_ORIGIN: z
     .string()
     .default('*'),
@@ -50,6 +54,7 @@ if (env.NODE_ENV === 'production') {
       ? 'ENCRYPTION_KEY'
       : null,
     env.CORS_ORIGIN === '*' ? 'CORS_ORIGIN' : null,
+    !env.QUEUE_ALERT_WEBHOOK_URL ? 'QUEUE_ALERT_WEBHOOK_URL' : null,
   ].filter(Boolean);
 
   if (unsafeProductionSettings.length > 0) {

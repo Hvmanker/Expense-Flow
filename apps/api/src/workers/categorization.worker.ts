@@ -4,7 +4,11 @@ import { buildCategorizerPrompt } from '@expenseflow/ai-prompts';
 import { resolveCanonicalMerchant } from '@expenseflow/parser-engine';
 import { TransactionModel, MerchantModel } from '@expenseflow/database';
 import { env } from '../config/env.js';
-import { TRANSACTION_CATEGORIZATION_QUEUE, CategorizationJobData } from '../queues/transaction.queue.js';
+import {
+  TRANSACTION_CATEGORIZATION_QUEUE,
+  CategorizationJobData,
+  getCategorizationDeadLetterQueue,
+} from '../queues/transaction.queue.js';
 
 let categorizationWorker: Worker<CategorizationJobData> | null = null;
 
@@ -120,6 +124,70 @@ export async function processCategorizationJob(job: Job<CategorizationJobData>):
   logger.info({ transactionId, category }, 'Transaction categorization updated successfully');
 }
 
+export function isTerminalFailure(job: Pick<Job, 'attemptsMade' | 'opts'>): boolean {
+  const maxAttempts = Math.max(1, Number(job.opts.attempts ?? 1));
+  return job.attemptsMade >= maxAttempts;
+}
+
+async function sendTerminalFailureAlert(payload: Record<string, unknown>): Promise<void> {
+  if (!env.QUEUE_ALERT_WEBHOOK_URL) {
+    logger.error(payload, 'Queue alert webhook is not configured');
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(env.QUEUE_ALERT_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`Alert webhook returned HTTP ${response.status}`);
+  } catch (error: any) {
+    logger.error({ ...payload, alertError: error.message }, 'Failed to deliver terminal queue alert');
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export async function handleCategorizationFailure(
+  job: Job<CategorizationJobData> | undefined,
+  error: Error
+): Promise<void> {
+  if (!job) {
+    logger.error({ err: error.message }, 'Categorization worker failed without job context');
+    return;
+  }
+
+  const terminal = isTerminalFailure(job);
+  logger.error(
+    { jobId: job.id, transactionId: job.data.transactionId, attemptsMade: job.attemptsMade, terminal, err: error.message },
+    'Categorization job failed'
+  );
+  if (!terminal) return;
+
+  const failedAt = new Date().toISOString();
+  const payload = {
+    queue: TRANSACTION_CATEGORIZATION_QUEUE,
+    originalJobId: job.id,
+    transactionId: job.data.transactionId,
+    attemptsMade: job.attemptsMade,
+    failedReason: error.message,
+    failedAt,
+  };
+  await getCategorizationDeadLetterQueue().add('terminal-failure', {
+    ...payload,
+    originalData: job.data,
+  }, {
+    jobId: `${job.id ?? job.data.transactionId}-failed-${Date.now()}`,
+    removeOnComplete: false,
+    removeOnFail: false,
+  });
+  await sendTerminalFailureAlert(payload);
+}
+
 export function startCategorizationWorker(): Worker<CategorizationJobData> {
   if (!categorizationWorker) {
     categorizationWorker = new Worker<CategorizationJobData>(
@@ -127,7 +195,11 @@ export function startCategorizationWorker(): Worker<CategorizationJobData> {
       processCategorizationJob,
       {
         connection: getRedisConnectionOptions(),
-        concurrency: 5,
+        concurrency: env.QUEUE_CONCURRENCY,
+        limiter: {
+          max: env.QUEUE_RATE_LIMIT_MAX,
+          duration: env.QUEUE_RATE_LIMIT_DURATION_MS,
+        },
       }
     );
 
@@ -136,10 +208,19 @@ export function startCategorizationWorker(): Worker<CategorizationJobData> {
     });
 
     categorizationWorker.on('failed', (job, err) => {
-      logger.error({ jobId: job?.id, err: err.message }, 'Categorization job failed');
+      void handleCategorizationFailure(job, err).catch((handlerError: any) => {
+        logger.error(
+          { jobId: job?.id, err: handlerError.message },
+          'Failed to persist terminal categorization failure'
+        );
+      });
     });
 
-    logger.info('BullMQ Categorization Worker started with concurrency 5');
+    logger.info({
+      concurrency: env.QUEUE_CONCURRENCY,
+      rateLimitMax: env.QUEUE_RATE_LIMIT_MAX,
+      rateLimitDurationMs: env.QUEUE_RATE_LIMIT_DURATION_MS,
+    }, 'BullMQ Categorization Worker started');
   }
 
   return categorizationWorker;

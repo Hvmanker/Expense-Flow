@@ -1,0 +1,11 @@
+appId: com.expenseflow.app
+---
+- launchApp:
+    clearState: true
+- openLink: "expenseflow://capture?rawText=Rs.%20350.00%20debited%20from%20HDFC%20Bank%20to%20STARBUCKS%20via%20UPI&sender=HDFCBK"
+- assertVisible: "Pending Approval (1)"
+- assertVisible: "STARBUCKS"
+- stopApp
+- launchApp
+- assertVisible: "Pending Approval (1)"
+- assertVisible: "STARBUCKS"

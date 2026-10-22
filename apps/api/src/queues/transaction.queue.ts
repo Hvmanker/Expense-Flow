@@ -3,6 +3,8 @@ import { logger } from '@expenseflow/logger';
 import { env } from '../config/env.js';
 
 export const TRANSACTION_CATEGORIZATION_QUEUE = 'transaction-categorization';
+export const TRANSACTION_CATEGORIZATION_DLQ = 'transaction-categorization-dlq';
+export const CATEGORIZATION_MAX_ATTEMPTS = 5;
 
 export interface CategorizationJobData {
   transactionId: string;
@@ -15,6 +17,7 @@ export interface CategorizationJobData {
 }
 
 let categorizationQueue: Queue<CategorizationJobData> | null = null;
+let categorizationDeadLetterQueue: Queue | null = null;
 
 function getRedisConnectionOptions() {
   const url = new URL(env.REDIS_URL);
@@ -30,7 +33,7 @@ export function getTransactionQueue(): Queue<CategorizationJobData> {
     categorizationQueue = new Queue<CategorizationJobData>(TRANSACTION_CATEGORIZATION_QUEUE, {
       connection: getRedisConnectionOptions(),
       defaultJobOptions: {
-        attempts: 3,
+        attempts: CATEGORIZATION_MAX_ATTEMPTS,
         backoff: {
           type: 'exponential',
           delay: 2000,
@@ -46,6 +49,19 @@ export function getTransactionQueue(): Queue<CategorizationJobData> {
   }
 
   return categorizationQueue;
+}
+
+export function getCategorizationDeadLetterQueue(): Queue {
+  if (!categorizationDeadLetterQueue) {
+    categorizationDeadLetterQueue = new Queue(TRANSACTION_CATEGORIZATION_DLQ, {
+      connection: getRedisConnectionOptions(),
+      defaultJobOptions: {
+        removeOnComplete: 1000,
+        removeOnFail: false,
+      },
+    });
+  }
+  return categorizationDeadLetterQueue;
 }
 
 export async function enqueueCategorization(data: CategorizationJobData): Promise<string | undefined> {
@@ -66,5 +82,9 @@ export async function closeTransactionQueue(): Promise<void> {
   if (categorizationQueue) {
     await categorizationQueue.close();
     categorizationQueue = null;
+  }
+  if (categorizationDeadLetterQueue) {
+    await categorizationDeadLetterQueue.close();
+    categorizationDeadLetterQueue = null;
   }
 }

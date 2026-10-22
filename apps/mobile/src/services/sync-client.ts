@@ -11,10 +11,12 @@ export interface SyncResult {
   pushedCount: number;
   pulledCount: number;
   lastSyncTimestamp: string;
+  errors: string[];
 }
 
 export class MobileSyncClient {
   private sdk: ExpenseFlowSDK;
+  private activeSync: Promise<SyncResult> | null = null;
 
   constructor(baseUrl?: string, authToken?: string) {
     this.sdk = new ExpenseFlowSDK({
@@ -36,8 +38,17 @@ export class MobileSyncClient {
   }
 
   async runSync(): Promise<SyncResult> {
+    if (this.activeSync) return this.activeSync;
+    this.activeSync = this.performSync().finally(() => {
+      this.activeSync = null;
+    });
+    return this.activeSync;
+  }
+
+  private async performSync(): Promise<SyncResult> {
     let pushedCount = 0;
     let pulledCount = 0;
+    const errors: string[] = [];
 
     // 1. Drain Pending Offline Changes (Push)
     const pendingChanges = await getPendingQueue();
@@ -50,6 +61,7 @@ export class MobileSyncClient {
         }
       } catch (pushErr: any) {
         console.warn('Sync Push warning (will retry on next sync loop):', pushErr.message);
+        errors.push(`push: ${pushErr.message}`);
       }
     }
 
@@ -66,6 +78,7 @@ export class MobileSyncClient {
       }
     } catch (pullErr: any) {
       console.warn('Sync Pull warning:', pullErr.message);
+      errors.push(`pull: ${pullErr.message}`);
     }
 
     const finalTimestamp = (await getLastSyncTimestamp()) || new Date().toISOString();
@@ -74,6 +87,7 @@ export class MobileSyncClient {
       pushedCount,
       pulledCount,
       lastSyncTimestamp: finalTimestamp,
+      errors,
     };
   }
 }
