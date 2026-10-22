@@ -1,48 +1,64 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-
-const PENDING_TRANSACTIONS = [
-  {
-    id: 'tx_1',
-    merchant: 'Starbucks',
-    amount: 450.0,
-    bank: 'HDFC',
-    aiSuggestion: 'Food & Dining',
-    time: '12:00 PM',
-  },
-  {
-    id: 'tx_2',
-    merchant: 'Swiggy Bangalore',
-    amount: 1200.0,
-    bank: 'ICICI',
-    aiSuggestion: 'Food & Dining',
-    time: ' Yesterday',
-  },
-];
+import { useTransactionStore } from '../../src/stores/transaction-store';
 
 export default function InboxScreen() {
+  const { pendingTransactions, confirmItem, ignoreItem, isLoading } = useTransactionStore();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Pending Approval ({PENDING_TRANSACTIONS.length})</Text>
-      <FlatList
-        data={PENDING_TRANSACTIONS}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.row}>
-              <Text style={styles.merchant}>{item.merchant}</Text>
-              <Text style={styles.amount}>₹{item.amount.toFixed(2)}</Text>
+      <Text style={styles.title}>Pending Approval ({pendingTransactions.length})</Text>
+
+      {pendingTransactions.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyTitle}>🎉 All caught up!</Text>
+          <Text style={styles.emptySubtitle}>No pending transactions awaiting review.</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={pendingTransactions}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.card}>
+              <View style={styles.row}>
+                <Text style={styles.merchant}>{item.merchant}</Text>
+                <Text style={styles.amount}>₹{item.amount.toFixed(2)}</Text>
+              </View>
+              <Text style={styles.bank}>
+                {item.bank} Bank • {item.payment_method}
+              </Text>
+              <View style={styles.aiBadge}>
+                <Text style={styles.aiText}>
+                  AI Suggestion: {item.ai_category || 'Miscellaneous'} (
+                  {Math.round((item.ai_confidence || 0.9) * 100)}% match)
+                </Text>
+              </View>
+
+              <View style={styles.actionRow}>
+                <TouchableOpacity
+                  style={[styles.button, styles.confirmButton]}
+                  onPress={() =>
+                    confirmItem(
+                      item.id,
+                      item.ai_category || 'Food & Dining',
+                      item.purpose || 'Expense'
+                    )
+                  }
+                >
+                  <Text style={styles.buttonText}>Approve & Confirm</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.button, styles.ignoreButton]}
+                  onPress={() => ignoreItem(item.id)}
+                >
+                  <Text style={[styles.buttonText, styles.ignoreText]}>Dismiss</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={styles.bank}>{item.bank} Bank • {item.time}</Text>
-            <View style={styles.aiBadge}>
-              <Text style={styles.aiText}>AI Suggestion: {item.aiSuggestion}</Text>
-            </View>
-            <TouchableOpacity style={styles.button}>
-              <Text style={styles.buttonText}>Confirm Purpose & Category</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      />
+          )}
+        />
+      )}
     </View>
   );
 }
@@ -57,6 +73,13 @@ const styles = StyleSheet.create({
   bank: { color: '#8E8E93', fontSize: 13, marginTop: 4 },
   aiBadge: { backgroundColor: '#0A2540', padding: 8, borderRadius: 6, marginVertical: 10 },
   aiText: { color: '#007AFF', fontSize: 12, fontWeight: '600' },
-  button: { backgroundColor: '#007AFF', padding: 12, borderRadius: 8, alignItems: 'center' },
+  actionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  button: { flex: 1, padding: 12, borderRadius: 8, alignItems: 'center' },
+  confirmButton: { backgroundColor: '#007AFF' },
+  ignoreButton: { backgroundColor: '#2C2C2E' },
   buttonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 14 },
+  ignoreText: { color: '#8E8E93' },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100 },
+  emptyTitle: { color: '#FFFFFF', fontSize: 20, fontWeight: 'bold' },
+  emptySubtitle: { color: '#8E8E93', fontSize: 14, marginTop: 8 },
 });

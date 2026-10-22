@@ -17,7 +17,18 @@
   },
   "packageManager": "pnpm@9.0.0",
   "engines": {
-    "node": ">=20.0.0",
+    "node": ">=22.13.0",
     "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "compression": "1.8.2",
+      "fast-xml-parser": "5.7.0",
+      "joi": "17.13.8",
+      "proxy-addr": "2.0.8",
+      "qs": "6.16.0",
+      "shell-quote": "1.11.0",
+      "source-map-js": "1.2.2"
+    }
   }
 }

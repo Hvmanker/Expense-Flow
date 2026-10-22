@@ -12,6 +12,7 @@ node_modules
 dist
 .turbo
 .next
+*.tsbuildinfo
 out
 build
 

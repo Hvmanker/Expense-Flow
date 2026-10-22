@@ -2,6 +2,7 @@ import { ParserEngine, generateFingerprint } from '@expenseflow/parser-engine';
 import { TransactionModel, TransactionEventModel, DeviceTokenModel } from '@expenseflow/database';
 import { SMSIngestionPayload, TransactionDTO } from '@expenseflow/shared-types';
 import { logger } from '@expenseflow/logger';
+import { enqueueCategorization } from '../../queues/transaction.queue.js';
 
 export class CaptureService {
   private parserEngine = new ParserEngine();
@@ -75,6 +76,17 @@ export class CaptureService {
         source: payload.source,
       },
     });
+
+    // 7. Enqueue Asynchronous AI Categorization via BullMQ
+    enqueueCategorization({
+      transactionId: newTx._id.toString(),
+      userId: userId.toString(),
+      rawSMS: payload.rawText,
+      merchant: parsed.merchant,
+      amount: parsed.amount,
+      paymentMethod: parsed.paymentMethod,
+      bank: parsed.bank,
+    }).catch((err) => logger.warn({ err: err.message }, 'Failed to enqueue categorization'));
 
     logger.info({ transactionId: newTx._id, merchant: parsed.merchant }, 'SMS Transaction created successfully');
 

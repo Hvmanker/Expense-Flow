@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "typecheck": "tsc --noEmit",
+    "migrate:up": "migrate-mongo up",
     "clean": "rm -rf dist"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
     "mongoose": "^8.2.0"
   },
   "devDependencies": {
+    "migrate-mongo": "^14.0.7",
     "typescript": "^5.4.0"
   }
 }

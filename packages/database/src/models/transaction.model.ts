@@ -72,9 +72,10 @@ const TransactionSchema = new Schema<ITransactionDocument>(
   { timestamps: true }
 );
 
-// Compound Indexes for Analytics & Ingestion
+// Compound Indexes for Analytics, Ingestion, and Delta Sync
 TransactionSchema.index({ userId: 1, fingerprint: 1 }, { unique: true });
 TransactionSchema.index({ userId: 1, occurredAt: -1, status: 1 });
 TransactionSchema.index({ userId: 1, category: 1, occurredAt: -1 });
+TransactionSchema.index({ userId: 1, updatedAt: -1 });
 
 export const TransactionModel = model<ITransactionDocument>('Transaction', TransactionSchema);

@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "main": "./dist/index.js",
-  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
@@ -13,7 +12,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@expenseflow/shared-types": "workspace:*"
+    "@expenseflow/shared-types": "workspace:*",
+    "@noble/hashes": "^2.4.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # Local Redis 7 Container for Background Queues & Distributed Idempotency
+  redis:
+    image: redis:7-alpine
+    container_name: expenseflow-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ExpenseFlow API Server (Connecting to Managed MongoDB Atlas & Local Redis)
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: expenseflow-api
+    restart: unless-stopped
+    ports:
+      - '4000:4000'
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - MONGODB_URI=${MONGODB_URI}
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - CORS_ORIGIN=${CORS_ORIGIN}
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:
+    driver: local

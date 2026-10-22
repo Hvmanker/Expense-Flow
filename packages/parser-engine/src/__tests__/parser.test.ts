@@ -46,6 +46,7 @@ describe('ParserEngine Unit Tests', () => {
     });
 
     expect(fp1).toBe(fp2);
+    expect(fp1).toBe('3287da242f3610cb8a09cff40847756fca049832ed36a50aa1e7c2355b10621d');
   });
 
   it('should resolve canonical merchant names and default categories', () => {

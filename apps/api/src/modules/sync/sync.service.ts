@@ -2,6 +2,23 @@ import { TransactionModel } from '@expenseflow/database';
 import { SyncQueueItem } from '@expenseflow/shared-types';
 import { Types } from 'mongoose';
 
+const ALLOWED_UPDATE_FIELDS = ['category', 'subcategory', 'purpose', 'notes', 'status'] as const;
+const ALLOWED_CREATE_FIELDS = [
+  'fingerprint', 'amount', 'currency', 'merchant', 'bank', 'paymentMethod',
+  'accountMasked', 'reference', 'occurredAt', 'category', 'subcategory', 'purpose', 'notes', 'status'
+] as const;
+
+function pickAllowedFields(payload: Record<string, any>, allowedKeys: readonly string[]) {
+  const result: Record<string, any> = {};
+  if (!payload || typeof payload !== 'object') return result;
+  for (const key of allowedKeys) {
+    if (payload[key] !== undefined) {
+      result[key] = payload[key];
+    }
+  }
+  return result;
+}
+
 export class SyncService {
   async processPushChanges(userId: string, changes: SyncQueueItem[]) {
     const syncedIds: string[] = [];
@@ -12,11 +29,12 @@ export class SyncService {
       try {
         if (item.entityType === 'TRANSACTION') {
           if (item.operation === 'UPDATE') {
+            const safePayload = pickAllowedFields(item.payload, ALLOWED_UPDATE_FIELDS);
             await TransactionModel.findOneAndUpdate(
               { _id: item.entityId, userId: userObjectId },
               {
                 $set: {
-                  ...item.payload,
+                  ...safePayload,
                   syncStatus: 'SYNCED',
                   updatedAt: new Date(),
                 },
@@ -24,8 +42,9 @@ export class SyncService {
             );
             syncedIds.push(item.queueId);
           } else if (item.operation === 'CREATE') {
+            const safePayload = pickAllowedFields(item.payload, ALLOWED_CREATE_FIELDS);
             await TransactionModel.create({
-              ...item.payload,
+              ...safePayload,
               userId: userObjectId,
               syncStatus: 'SYNCED',
               createdAt: new Date(),

@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "ExpenseFlow",
+    "slug": "expenseflow",
+    "version": "1.0.0",
+    "scheme": "expenseflow",
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "headers": {
+            "Cross-Origin-Embedder-Policy": "credentialless",
+            "Cross-Origin-Opener-Policy": "same-origin"
+          }
+        }
+      ],
+      "expo-secure-store",
+      "expo-sqlite",
+      "expo-status-bar",
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
