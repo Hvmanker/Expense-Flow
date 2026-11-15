@@ -24,12 +24,8 @@ RUN pnpm install --frozen-lockfile
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 
-# Build shared packages and API
-RUN pnpm --filter @expenseflow/shared-types build
-RUN pnpm --filter @expenseflow/logger build
-RUN pnpm --filter @expenseflow/database build
-RUN pnpm --filter @expenseflow/parser-engine build
-RUN pnpm --filter @expenseflow/api build
+# Build the API and all of its workspace dependencies in dependency order.
+RUN pnpm --filter '@expenseflow/api...' build
 
 # Prune devDependencies for production
 RUN pnpm --filter @expenseflow/api --prod deploy pruned-api

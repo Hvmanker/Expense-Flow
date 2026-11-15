@@ -72,7 +72,11 @@ export class ExpenseFlowSDK {
       throw new Error(err.error || 'Failed to pull sync updates');
     }
 
-    return res.json();
+    const data = await res.json();
+    return {
+      ...data,
+      timestamp: data.serverTimestamp ?? data.timestamp,
+    };
   }
 
   async sendMagicLink(email: string): Promise<{ success: boolean; message: string; devOtp?: string }> {

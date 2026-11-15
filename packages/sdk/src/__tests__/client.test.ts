@@ -116,6 +116,28 @@ describe('ExpenseFlowSDK Unit Tests', () => {
     expect(res.timestamp).toBe('2026-10-22T05:00:00.000Z');
   });
 
+  it('normalizes the serverTimestamp from the live sync response into the SDK cursor', async () => {
+    const serverTimestamp = '2026-11-15T08:00:00.000Z';
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, transactions: [], serverTimestamp }),
+    });
+
+    await expect(sdk.pullSync('2026-11-14T08:00:00.000Z')).resolves.toMatchObject({
+      transactions: [],
+      timestamp: serverTimestamp,
+    });
+  });
+
+  it('rejects a failed sync pull without returning a cursor', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({ success: false, error: 'Sync offline' }),
+    });
+
+    await expect(sdk.pullSync()).rejects.toThrow('Sync offline');
+  });
+
   it('should post SMS ingestion payload in captureSMS', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
